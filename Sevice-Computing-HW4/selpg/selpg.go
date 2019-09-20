@@ -9,7 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 )
-
+//setting pflag
 var s = flag.IntP("sNum","s",1,"Input start page.")
 var e = flag.IntP("eNum", "e", 1,"Input end page")
 var l = flag.IntP("lNum", "l", 72,"Input num of lines in each page")
@@ -18,64 +18,69 @@ var d=flag.StringP("d","d","", "input destination")
 var argsnum int
 var filename string
 
-func args_check( ){
+func args_check( ) bool{
 	argsnum = argsnum-flag.NArg()
 	// check s/e page
 	if(*s < 1 || *e < 1 || *e<*s){
 		fmt.Println(os.Stderr, "input wrong s/e page ")
-		os.Exit(1)
+		return false
 	}
 	//check num of args
 	if(argsnum < 3){
 		fmt.Println(os.Stderr, "arguments not enough ")
-		os.Exit(1)
+		return false
 	}
 	// check if -f and -lNumber is both exit
-	if(argsnum >= 5){
+	if(argsnum >= 5 && *f == true && *l != 72 ){
 		fmt.Println(os.Stderr, "shouldn't use -f and -l at the same time")
-		os.Exit(1)
+		return false
 	}
 	if(flag.NArg()>1){
 		fmt.Println(os.Stderr, "Input to much arguments")
+		return false
 	}
 	filename = flag.Arg(0)
+	return true
 }
+
 func selpg() {
+	//set cmd
 	var cmd *exec.Cmd
 	var cmd_in io.WriteCloser
 	var cmd_out io.ReadCloser
+	//setting -d pipe
 	if *d != "" {
 		cmd = exec.Command("bash", "-c", *d)
 		cmd_in, _ = cmd.StdinPipe()
 		cmd_out, _ = cmd.StdoutPipe()
-		//执行设定的命令
 		cmd.Start()
 	}
+	//judge filename
 	if filename != "" {
-		inf, err := os.Open(filename)
+		inf, err := os.OpenFile(filename,os.O_RDWR,0666)
 		if err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			return
 		}
 		line_count := 1
 		page_count := 1
 		fin := bufio.NewReader(inf)
 		for {
-			//读取输入文件中的一行数据
+			//read from file
 			line, _, err := fin.ReadLine()
 			if err != io.EOF && err != nil {
 				fmt.Println(err)
-				os.Exit(1)
+				return
 			}
 			if err == io.EOF {
 				break
 			}
 			if page_count >= *s && page_count <= *e{
 				if *d == "" {
-					//打印到屏幕
+					//stdout
 					fmt.Println(string(line))
 				} else {
-					//写入文件中
+					//write to file
 					fmt.Fprintln(cmd_in, string(line))
 				}
 			}
@@ -98,16 +103,13 @@ func selpg() {
 				fmt.Println(err)
 			}
 			fmt.Print(string(cmdBytes))
-			//等待command退出
 			cmd.Wait()
 		}
-	} else {
-		//从标准输入读取内容
+	} else { ////stdin scanner with no filename
 		ns := bufio.NewScanner(os.Stdin)
 		line_count := 1
 		page_count := 1
 		out := ""
-
 		for ns.Scan() {
 			line := ns.Text()
 			line += "\n"
@@ -126,6 +128,7 @@ func selpg() {
 				}
 			}
 		}
+
 		if *d == "" {
 			fmt.Print(out)
 		} else {
@@ -136,15 +139,15 @@ func selpg() {
 				fmt.Println(err)
 			}
 			fmt.Print(string(cmdBytes))
-			//等待command退出
 			cmd.Wait()
 		}
 	}
 }
-
+//main function
 func main() {
 	argsnum = len(os.Args)
 	flag.Parse()
-	args_check()
-	selpg()
+	if(args_check()){
+		selpg()
+	}
 }
