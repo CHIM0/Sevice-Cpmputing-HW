@@ -56,4 +56,3 @@ error_file.txt
 #### selpg -s1 -e1 test.txt -dcat
 测试-d（类似管道），不用lp测试改用cat测试  
 ![](srcshot/_d.jpg)  
-

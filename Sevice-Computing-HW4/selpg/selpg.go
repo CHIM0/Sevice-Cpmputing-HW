@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"bufio"
 	"io"
-	"io/ioutil"
 )
 //setting pflag
 var s = flag.IntP("sNum","s",1,"Input start page.")
@@ -20,23 +19,20 @@ var filename string
 
 func args_check( ) bool{
 	argsnum = argsnum-flag.NArg()
-	// check s/e page
 	if(*s < 1 || *e < 1 || *e<*s){
 		fmt.Println(os.Stderr, "input wrong s/e page ")
 		return false
 	}
-	//check num of args
-	if(argsnum < 3){
+	if(argsnum < 3){ 	//check num of args
 		fmt.Println(os.Stderr, "arguments not enough ")
 		return false
 	}
-	// check if -f and -lNumber is both exit
-	if(argsnum >= 5 && *f == true && *l != 72 ){
+	if(argsnum >= 5 && *f == true && *l != 72 ){	// check if -f and -lNumber is both exit
 		fmt.Println(os.Stderr, "shouldn't use -f and -l at the same time")
 		return false
 	}
 	if(flag.NArg()>1){
-		fmt.Println(os.Stderr, "Input to much arguments")
+		fmt.Println(os.Stderr, "Input too much arguments")
 		return false
 	}
 	filename = flag.Arg(0)
@@ -44,101 +40,80 @@ func args_check( ) bool{
 }
 
 func selpg() {
-	//set cmd
-	var cmd *exec.Cmd
-	var cmd_in io.WriteCloser
-	var cmd_out io.ReadCloser
-	//setting -d pipe
+	cmd := exec.Command( *d)
+	cmd_in, _ := cmd.StdinPipe()
 	if *d != "" {
-		cmd = exec.Command("bash", "-c", *d)
-		cmd_in, _ = cmd.StdinPipe()
-		cmd_out, _ = cmd.StdoutPipe()
-		cmd.Start()
+		cmd.Stdout = os.Stdout
+		cmd.Start() //Wait()
 	}
 	//judge filename
 	if filename != "" {
-		inf, err := os.OpenFile(filename,os.O_RDWR,0666)
+		input_file, err := os.OpenFile(filename,os.O_RDWR,0666)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		line_count := 1
-		page_count := 1
-		fin := bufio.NewReader(inf)
-		for {
-			//read from file
-			line, _, err := fin.ReadLine()
+		line_nums, page_nums:= 1, 1
+		file_in := bufio.NewReader(input_file)
+		for { //read line from file
+			line, _, err := file_in.ReadLine()
 			if err != io.EOF && err != nil {
 				fmt.Println(err)
 				return
-			}
-			if err == io.EOF {
+			}else if err == io.EOF{
 				break
 			}
-			if page_count >= *s && page_count <= *e{
+			if page_nums >= *s && page_nums <= *e{
 				if *d == "" {
-					//stdout
 					fmt.Println(string(line))
 				} else {
-					//write to file
-					fmt.Fprintln(cmd_in, string(line))
+					fmt.Fprintln(cmd_in, string(line))//write to pipe
 				}
 			}
-			line_count++
+			line_nums++
 			if (*f == false){
-				if line_count > *l {
-					line_count = 1
-					page_count++
+				if line_nums > *l {
+					line_nums = 1
+					page_nums++
 				}
 			} else {
 				if string(line) == "\f" {
-					page_count++
+					page_nums++
 				}
 			}
 		}
 		if *d != "" {
 			cmd_in.Close()
-			cmdBytes, err := ioutil.ReadAll(cmd_out)
-			if err != nil {
-				fmt.Println(err)
-			}
-			fmt.Print(string(cmdBytes))
 			cmd.Wait()
 		}
 	} else { ////stdin scanner with no filename
-		ns := bufio.NewScanner(os.Stdin)
-		line_count := 1
-		page_count := 1
+		std_input := bufio.NewScanner(os.Stdin)
+		line_nums := 1
+		page_nums := 1
 		out := ""
-		for ns.Scan() {
-			line := ns.Text()
+		for std_input.Scan() {
+			line := std_input.Text()
 			line += "\n"
-			if page_count >= *s && page_count <= *e{
+			if page_nums >= *s && page_nums <= *e{
 				out += line
 			}
-			line_count++
+			line_nums++
 			if (*f == false){
-				if line_count > *l {
-					line_count = 1
-					page_count++
+				if line_nums> *l {
+					line_nums = 1
+					page_nums++
 				}
 			} else {
 				if string(line) == "\f" {
-					page_count++
+					page_nums++
 				}
 			}
 		}
-
 		if *d == "" {
 			fmt.Print(out)
 		} else {
-			fmt.Fprint(cmd_in, out)
+			fmt.Fprint(cmd_in, out)//write to pipe
 			cmd_in.Close()
-			cmdBytes, err := ioutil.ReadAll(cmd_out)
-			if err != nil {
-				fmt.Println(err)
-			}
-			fmt.Print(string(cmdBytes))
 			cmd.Wait()
 		}
 	}
